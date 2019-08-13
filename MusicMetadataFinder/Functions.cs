@@ -5,13 +5,9 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices;
-using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using MusicMetadataFinder.Models;
 using Newtonsoft.Json;
@@ -42,16 +38,16 @@ namespace MusicMetadataFinder
             }
         }
 
-        private void GetSpotifyWebAPI()
+        private async void GetSpotifyWebAPI()
         {
             //using the token from TokenGetter() creates a new instance of SpotifyWebAPI
 
             try
             {
-                var token = TokenGetter();
+                var token = await TokenGetter();
                 MyResources.Instance.Api = new SpotifyWebAPI { TokenType = token.TokenType, AccessToken = token.AccessToken };
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 throw;
             }
@@ -73,9 +69,9 @@ namespace MusicMetadataFinder
             return JsonConvert.DeserializeObject<Token>(response.Content);
         }
 
-        private Token TokenGetter()
+        private async Task<Token> TokenGetter()
         {
-            /*the ToKen gets serialized and saved for later used, the same token can be used to get a SpotifyWebAPI connection
+            /*the ToKen gets serialized to json and saved for later used, the same token can be used to get a SpotifyWebAPI connection
              but there's a time limitation. and we check if the time hasn't passed we use that token
              if it has we just get another one*/
 
@@ -85,10 +81,9 @@ namespace MusicMetadataFinder
                 Token token;
                 if (System.IO.File.Exists(MyResources.Instance.TokenPath))
                 {
-                    using (var fs = new FileStream(MyResources.Instance.TokenPath, FileMode.Open))
+                    using (var sr = new StreamReader(MyResources.Instance.TokenPath,Encoding.UTF8))
                     {
-                        var formatter = new BinaryFormatter();
-                        savedToken = (SavedToken)formatter.Deserialize(fs);
+                        savedToken = JsonConvert.DeserializeObject<SavedToken>(await sr.ReadToEndAsync());
                     }
                     if (savedToken.ExpiresInMinutes < 5)
                     {
@@ -97,7 +92,7 @@ namespace MusicMetadataFinder
                         {
                             throw new Exception(token.ErrorDescription);
                         }
-                        using (var fs = new FileStream(MyResources.Instance.TokenPath, FileMode.Create))
+                        using (var sw = new StreamWriter(MyResources.Instance.TokenPath, false, Encoding.UTF8))
                         {
                             savedToken = new SavedToken
                             {
@@ -106,8 +101,7 @@ namespace MusicMetadataFinder
                                 ExpiresIn = token.ExpiresIn,
                                 CreateDate = DateTime.Now
                             };
-                            var formatter = new BinaryFormatter();
-                            formatter.Serialize(fs, savedToken);
+                            await sw.WriteAsync(JsonConvert.SerializeObject(savedToken, Formatting.Indented));
                         }
                     }
                     else
@@ -128,7 +122,7 @@ namespace MusicMetadataFinder
                     {
                         throw new Exception(token.ErrorDescription);
                     }
-                    using (var fs = new FileStream(MyResources.Instance.TokenPath, FileMode.Create))
+                    using (var sw = new StreamWriter(MyResources.Instance.TokenPath, false, Encoding.UTF8))
                     {
                         savedToken = new SavedToken
                         {
@@ -137,8 +131,7 @@ namespace MusicMetadataFinder
                             ExpiresIn = token.ExpiresIn,
                             CreateDate = DateTime.Now
                         };
-                        var formatter = new BinaryFormatter();
-                        formatter.Serialize(fs, savedToken);
+                        await sw.WriteAsync(JsonConvert.SerializeObject(savedToken, Formatting.Indented));
                     }
                 }
                 return token;
